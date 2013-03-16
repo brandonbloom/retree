@@ -1,6 +1,7 @@
 (ns retree.core)
 
-(defn foo
-  "I don't do a whole lot."
-  [x]
-  (println x "Hello, World!"))
+;; The master plan:
+;; v1: Function Combinators
+;; v2: Interpretered DSL
+;; v3: Compiled DSL
+
