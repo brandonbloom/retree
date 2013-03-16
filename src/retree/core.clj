@@ -1,4 +1,5 @@
-(ns retree.core)
+(ns retree.core
+  (:refer-clojure :exclude (repeat)))
 
 ;; The master plan:
 ;; v1: Function Combinators
@@ -37,7 +38,7 @@
       (q t*))))
 
 ;; This is ordered or "determinisitic choice
-;;TODO: Consider non-deterministic choice
+;;TODO: Consider non-deterministic choice (possible name: fork)
 (defn choice [p q]
   (fn [t]
     (or (p t) (q t))))
@@ -47,6 +48,21 @@
     (if-let [t* (p t)]
       (q t*)
       (r t))))
+
+
+;;; Core Strategies
+
+(defn attempt [s]
+  (choice s succeed))
+
+(defn repeat [s]
+  (fn rec [t]
+    ((attempt (pipe s rec)) t)))
+
+;; repeat is zero-or-more. Might be better named "iterate" to match Clojure
+;; TODO repeat with terminal strategy, repeat-n, one-or-more
+;; could also call these zom and oom
+
 
 
 ;;; Debugging
@@ -73,6 +89,9 @@
 
 ;;; Execution
 
+(defn rewrite [strategy tree]
+  (strategy tree))
+
 (defn fixed-point [strategy tree]
   (let [tree* (strategy tree)]
     (cond
@@ -83,19 +102,15 @@
 
 (comment
 
-  (defn foo [t]
-    (assoc t :foo 1))
+  (defn foo [{:keys [foo] :as t}]
+    (when (< foo 5)
+      (update-in t [:foo] inc)))
 
   (defn bar [t]
     (assoc t :bar 2))
 
-  (defn baz [t]
-    (assoc t :baz 3))
-
-  (->> {:foo 2}
-    (fixed-point
-      (branch foo
-        (trace bar)
-        baz)))
+  (->> {:foo 3}
+    (rewrite
+      (repeat foo)))
 
 )
