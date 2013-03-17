@@ -88,11 +88,8 @@
 
 (defn at [key s]
   (fn [t]
-    (let [v (t key)
-          v* (s v)]
-      (cond
-        (= v v*) t
-        v* (assoc t key v*)))))
+    (when-let [v* (s (t key))]
+      (assoc t key v*))))
 
 ;;TODO at-path
 
@@ -190,7 +187,7 @@
         :right {:value 2}}
     (rewrite
       (at :right
-        #(update-in % [:value] dec))))
+        #(update-in % [:value] inc))))
 
   (->> {:left {:value 1}
         :right {:value 2}}
