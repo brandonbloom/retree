@@ -17,6 +17,7 @@
 ; "s" stands for "Strategy"
 ; p/q/r are to f/g/h as strategies are to functions
 ; similar terms with t/u/v
+;;TODO what does this "c" mean? Seems related to boundary strategies
 
 
 ;;; Primitive Strategies
@@ -64,9 +65,13 @@
   (fn rec [t]
     ((attempt (pipe s rec)) t)))
 
-;; repeat is zero-or-more. Might be better named "iterate" to match Clojure
-;; TODO repeat with terminal strategy, repeat-n, one-or-more
-;; could also call these zom and oom
+(defn repeat1 [s c]
+  (fn rec [t]
+    ((pipe s (choice rec c)) t)))
+
+(defn repeat-until [s c]
+  (fn rec [t]
+    ((pipe s (choice c rec)) t)))
 
 
 ;;; Traversals
