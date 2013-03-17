@@ -1,5 +1,5 @@
 (ns retree.core
-  (:refer-clojure :exclude (repeat)))
+  (:refer-clojure :exclude (repeat some)))
 
 ;; The master plan:
 ;; v1: Function Combinators
@@ -132,6 +132,24 @@
   (fn rec [t]
     ((choice (one rec) s) t)))
 
+(defn some [s]
+  (fn [t]
+    (when (map? t)
+      (let [successes (for [[k v] t
+                            :let [v* (s v)]
+                            :when v*]
+                        [k v*])]
+        (when (seq successes)
+          (into t successes))))))
+
+(defn some-td [s]
+  (fn rec [t]
+    ((choice s (some rec)) t)))
+
+(defn some-bu [s]
+  (fn rec [t]
+    ((choice (some rec) s) t)))
+
 
 ;;; Debugging
 
@@ -196,5 +214,14 @@
         (one (pipe (pred #(odd? (:value %))) ; also tree even? and zero?
                #(update-in % [:value] inc)))
         #(assoc % :failed true))))
+
+  (->> {:left {:value 1}
+        :right {:value 2}}  ; also try both with 1, or both with 2
+    (rewrite
+      (choice
+        (some (pipe (pred #(odd? (:value %)))
+                #(update-in % [:value] inc)))
+        #(assoc % :failed true))))
+
 
 )
