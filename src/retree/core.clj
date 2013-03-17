@@ -8,7 +8,7 @@
 
 ;; A strategy is a function of a tree that returns a rewritten tree, or nil.
 
-;; Consider traversals with side effects
+;; Consider traversals with side effects: Kiama's query & queryf
 
 
 ;;; Conventions
@@ -21,7 +21,7 @@
 
 ;;; Primitive Strategies
 
-(defn succeed [t] t)
+(defn pass [t] t)
 
 (defn fail [t] nil)
 
@@ -36,6 +36,11 @@
   (fn [t]
     (when-let [t* (p t)]
       (q t*))))
+
+(defn pred [f]
+  (fn [t]
+    (when (f t)
+      t)))
 
 ;; This is ordered or "determinisitic choice
 ;;TODO: Consider non-deterministic choice (possible name: fork)
@@ -53,7 +58,7 @@
 ;;; Core Strategies
 
 (defn attempt [s]
-  (choice s succeed))
+  (choice s pass))
 
 (defn repeat [s]
   (fn rec [t]
@@ -63,6 +68,28 @@
 ;; TODO repeat with terminal strategy, repeat-n, one-or-more
 ;; could also call these zom and oom
 
+
+;;; Traversals
+
+(defn all [s]
+  (fn [t]
+    ;;TODO vectors & other collections
+    (if (map? t)
+      (reduce-kv (fn [t* k v]
+                   (if-let [v* (s v)]
+                     (assoc t* k v*)
+                     (reduced nil)))
+                 t t)
+      t)))
+
+
+(defn all-td [s]
+  (fn rec [t]
+    ((choice s (all rec)) t)))
+
+(defn all-bu [s]
+  (fn rec [t]
+    ((choice (all rec) s) t)))
 
 
 ;;; Debugging
@@ -90,27 +117,26 @@
 ;;; Execution
 
 (defn rewrite [strategy tree]
-  (strategy tree))
+  (or (strategy tree) tree))
 
 (defn fixed-point [strategy tree]
   (let [tree* (strategy tree)]
     (cond
       (nil? tree*) tree
-      (= tree tree*) tree* ;TODO: need this for metadata on tree* ?
+      (= tree tree*) tree*
       :else (recur strategy tree*))))
 
 
 (comment
 
-  (defn foo [{:keys [foo] :as t}]
-    (when (< foo 5)
-      (update-in t [:foo] inc)))
-
-  (defn bar [t]
-    (assoc t :bar 2))
-
-  (->> {:foo 3}
+  (->> {:left {:value 1}
+        :right {:left {:value 2}
+                :right {:value 3}}}
     (rewrite
-      (repeat foo)))
+      (all-bu
+        (branch (pred #(contains? % :value))
+          #(update-in % [:value] inc)
+          #(assoc % :interior true))))
+    clojure.pprint/pprint)
 
 )
