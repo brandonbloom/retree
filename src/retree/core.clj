@@ -98,20 +98,6 @@
     (pipe (strategies from) (range strategies (inc from) to))
     pass))
 
-;;TODO kiama reduce
-
-;;TODO alldownup2
-;;alltdfold
-;;somedownup
-
-(defn many-bu [s]
-  (fn rec [t]
-    ((choice (pipe s (attempt rec)) rec) t)))
-
-(defn many-td [s]
-  (fn rec [t]
-    ((choice (pipe s (all (attempt rec))) (some rec)) t)))
-
 
 
 ;;; Traversals
@@ -214,6 +200,20 @@
 (defn innermost [s]
   (fn rec [t]
     ((bottom-up (attempt (pipe s rec))) t)))
+
+;;TODO kiama reduce
+
+;;TODO alldownup2
+;;alltdfold
+;;somedownup
+
+(defn many-bu [s]
+  (fn rec [t]
+    ((choice (pipe s (attempt rec)) rec) t)))
+
+(defn many-td [s]
+  (fn rec [t]
+    ((choice (pipe s (all (attempt rec))) (some rec)) t)))
 
 ;TODO kiama: eq/equal, issubterm, ispropersubterm issuperterm,
 ; ispropersuperterm, leaves, leaves, isinnernode
@@ -342,5 +342,9 @@
                 #(update-in % [:value] inc)))
         #(assoc % :failed true))))
 
+  (->> {:left {:value 1}
+        :right {:value 2}}
+    (rewrite (everywhere #(when (:value %)
+                            (update-in % [:value] inc)))))
 
 )
