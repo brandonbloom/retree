@@ -98,7 +98,7 @@
 
 (defn all [s]
   (fn [t]
-    ;;TODO vectors & other collections
+    ;;TODO vectors & other collections (see also: one, some, etc)
     (if (map? t)
       (reduce-kv (fn [t* k v]
                    (if-let [v* (s v)]
@@ -107,7 +107,6 @@
                  t t)
       t)))
 
-
 (defn all-td [s]
   (fn rec [t]
     ((choice s (all rec)) t)))
@@ -115,6 +114,26 @@
 (defn all-bu [s]
   (fn rec [t]
     ((choice (all rec) s) t)))
+
+(defn one [s]
+  (fn [t]
+    (when (map? t)
+      (reduce (fn [t* kvp]
+                (when-not (= kvp :fail)
+                  (let [[k v] kvp]
+                    (if-let [v* (s v)]
+                      (reduced (assoc t* k v*))
+                      t*))))
+              t
+              (concat t [:fail])))))
+
+(defn once-td [s]
+  (fn rec [t]
+    ((choice s (one rec)) t)))
+
+(defn once-bu [s]
+  (fn rec [t]
+    ((choice (one rec) s) t)))
 
 
 ;;; Debugging
@@ -144,6 +163,7 @@
 (defn rewrite [strategy tree]
   (or (strategy tree) tree))
 
+;;TODO this should be a strategy combinator itself
 (defn fixed-point [strategy tree]
   (let [tree* (strategy tree)]
     (cond
@@ -171,5 +191,13 @@
     (rewrite
       (at :right
         #(update-in % [:value] dec))))
+
+  (->> {:left {:value 1}
+        :right {:value 2}}
+    (rewrite
+      (choice
+        (one (pipe (pred #(odd? (:value %))) ; also tree even? and zero?
+               #(update-in % [:value] inc)))
+        #(assoc % :failed true))))
 
 )
