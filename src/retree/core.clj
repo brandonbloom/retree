@@ -86,6 +86,16 @@
 
 ;;; Traversals
 
+(defn at [key s]
+  (fn [t]
+    (let [v (t key)
+          v* (s v)]
+      (cond
+        (= v v*) t
+        v* (assoc t key v*)))))
+
+;;TODO at-path
+
 (defn all [s]
   (fn [t]
     ;;TODO vectors & other collections
@@ -148,10 +158,18 @@
         :right {:left {:value 2}
                 :right {:value 3}}}
     (rewrite
-      (all-bu
-        (branch (pred #(contains? % :value))
-          #(update-in % [:value] inc)
-          #(assoc % :interior true))))
+      (repeat-until
+        (all-td
+          (branch (pred #(contains? % :value))
+            #(update-in % [:value] inc)
+            #(assoc % :interior true)))
+        (pred #(contains? % :interior))))
     clojure.pprint/pprint)
+
+  (->> {:left {:value 1}
+        :right {:value 2}}
+    (rewrite
+      (at :right
+        #(update-in % [:value] dec))))
 
 )
