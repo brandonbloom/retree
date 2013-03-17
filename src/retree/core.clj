@@ -8,7 +8,8 @@
 
 ;; A strategy is a function of a tree that returns a rewritten tree, or nil.
 
-;; Consider traversals with side effects: Kiama's query & queryf
+;; TODO Consider traversals with side effects: Kiama's query & queryf
+;; Also consider collect & other query-like things. Probably for another ns
 
 
 ;;; Conventions
@@ -35,18 +36,22 @@
     (when (= t u)
       t)))
 
-;;TODO variadic pipe & choice
+(defn pipe
+  ([p q]
+    (fn [t]
+      (when-let [t* (p t)]
+        (q t*))))
+  ([p q & more]
+    (apply pipe (pipe p q) more)))
 
-(defn pipe [p q]
-  (fn [t]
-    (when-let [t* (p t)]
-      (q t*))))
+(defn choice
+  ([p q]
+    (fn [t]
+      (or (p t) (q t))))
+  ([p q & more]
+    (apply choice (choice p q) more)))
 
-;; This is ordered or "determinisitic choice
-;;TODO: Consider non-deterministic choice (possible name: fork)
-(defn choice [p q]
-  (fn [t]
-    (or (p t) (q t))))
+;;TODO non-deterministic choice (possible name: fork)
 
 (defn branch [p q r]
   (fn [t]
@@ -189,6 +194,26 @@
 
 (comment
 
+  (->> {}
+    (rewrite (pipe #(assoc % :x 1)
+                   #(assoc % :y 2)
+                   ;(constantly nil)
+                   #(assoc % :z 3))))
+
+  (->> {}
+    (rewrite (pipe #(assoc % :x 1)
+                   #(assoc % :y 2)
+                   ;(constantly nil)
+                   #(assoc % :z 3))))
+
+  (->> {:x -2}
+    (rewrite (choice #(when (= (:x %) 3)
+                        (assoc % :y :three))
+                     #(when (odd? (:x %))
+                        (assoc % :y :odd))
+                     #(when (pos? (:x %))
+                        (assoc % :y :pos)))))
+
   (->> {:left {:value 1}
         :right {:left {:value 2}
                 :right {:value 3}}}
@@ -211,7 +236,7 @@
         :right {:value 2}}
     (rewrite
       (choice
-        (one (pipe (pred #(odd? (:value %))) ; also tree even? and zero?
+        (one (pipe (pred #(odd? (:value %))) ; also try even? and zero?
                #(update-in % [:value] inc)))
         #(assoc % :failed true))))
 
