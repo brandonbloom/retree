@@ -1,5 +1,5 @@
 (ns retree.core
-  (:refer-clojure :exclude (repeat some)))
+  (:refer-clojure :exclude (not repeat some iterate range while)))
 
 ;; The master plan:
 ;; v1: Function Combinators
@@ -60,18 +60,7 @@
       (r t))))
 
 
-;;; Predicates
-
-(defn pred [f]
-  (fn [t]
-    (when (f t)
-      t)))
-
-(def leaf?
-  (all fail))
-
-
-;;; Core Strategies
+;;; Repetition
 
 (defn attempt [s]
   (choice s pass))
@@ -80,6 +69,8 @@
   (fn rec [t]
     ((attempt (pipe s rec)) t)))
 
+;;TODO (repeat s c) (repeat s n)  -- need to rename one...
+
 (defn repeat1 [s c]
   (fn rec [t]
     ((pipe s (choice rec c)) t)))
@@ -87,6 +78,25 @@
 (defn repeat-until [s c]
   (fn rec [t]
     ((pipe s (choice c rec)) t)))
+
+(defn while [test s]
+  (fn rec [t]
+    ((attempt (pipe test s rec)) t)))
+
+(defn until [test s]
+  (fn rec [t]
+    ((choice (pipe s rec)) t)))
+
+(defn do-while [s test]
+  (pipe s (while test s)))
+
+(defn iterate [init test advance]
+  (pipe init (until test advance)))
+
+(defn range [strategies from to]
+  (if (<= from to)
+    (pipe (strategies from) (range strategies (inc from) to))
+    pass))
 
 
 ;;; Traversals
@@ -155,6 +165,24 @@
   (fn rec [t]
     ((choice (some rec) s) t)))
 
+(defn breadth-first [s]
+  (fn rec [t]
+    ((pipe (all s) (all rec)))))
+
+(defn top-down [s]
+  (fn rec [t]
+    ((pipe s (all rec)) t)))
+
+;TODO (defn top-down-until [s test] ...)  ; topdownS
+;TODO bottom-up                           ; bottomup
+;TODO bottom-up-until                     ; bottomupS
+;TODO (downup s), (downup topdown-s bottomup-s)
+;TODO downup-until                        ; downupS w/ 3 arg version too
+;
+
+;;TODO congruence -- works on vectors (and seqs?)
+;; what about for maps? maybe it's like at-keys or something?
+
 
 ;;; Debugging
 
@@ -176,6 +204,27 @@
         t))))
 
 ;;TODO trace-failures
+
+
+;;; Predicates
+
+(defn pred [f]
+  (fn [t]
+    (when (f t)
+      t)))
+
+;(defmacro defpred [name & ftail]
+;  `(defn ~name (pred (fn ~@ftail))))
+
+(def leaf?
+  (all fail))
+
+(defn not [s]
+  (branch s fail pass))
+
+(defn where [s]
+  (fn [t]
+    ((pipe s (build t)) t)))
 
 
 ;;; Execution
