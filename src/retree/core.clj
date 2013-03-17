@@ -42,11 +42,6 @@
     (when-let [t* (p t)]
       (q t*))))
 
-(defn pred [f]
-  (fn [t]
-    (when (f t)
-      t)))
-
 ;; This is ordered or "determinisitic choice
 ;;TODO: Consider non-deterministic choice (possible name: fork)
 (defn choice [p q]
@@ -58,6 +53,17 @@
     (if-let [t* (p t)]
       (q t*)
       (r t))))
+
+
+;;; Predicates
+
+(defn pred [f]
+  (fn [t]
+    (when (f t)
+      t)))
+
+(def leaf?
+  (all fail))
 
 
 ;;; Core Strategies
