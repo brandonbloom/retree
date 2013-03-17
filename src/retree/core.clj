@@ -98,6 +98,21 @@
     (pipe (strategies from) (range strategies (inc from) to))
     pass))
 
+;;TODO kiama reduce
+
+;;TODO alldownup2
+;;alltdfold
+;;somedownup
+
+(defn many-bu [s]
+  (fn rec [t]
+    ((choice (pipe s (attempt rec)) rec) t)))
+
+(defn many-td [s]
+  (fn rec [t]
+    ((choice (pipe s (all (attempt rec))) (some rec)) t)))
+
+
 
 ;;; Traversals
 
@@ -165,6 +180,9 @@
   (fn rec [t]
     ((choice (some rec) s) t)))
 
+;;TODO congruence -- works on vectors (and seqs?)
+;; what about for maps? maybe it's like at-keys or something?
+
 (defn breadth-first [s]
   (fn rec [t]
     ((pipe (all s) (all rec)))))
@@ -174,14 +192,41 @@
     ((pipe s (all rec)) t)))
 
 ;TODO (defn top-down-until [s test] ...)  ; topdownS
-;TODO bottom-up                           ; bottomup
-;TODO bottom-up-until                     ; bottomupS
-;TODO (downup s), (downup topdown-s bottomup-s)
-;TODO downup-until                        ; downupS w/ 3 arg version too
-;
 
-;;TODO congruence -- works on vectors (and seqs?)
-;; what about for maps? maybe it's like at-keys or something?
+(defn bottom-up [s]
+  (fn rec [t]
+    ((pipe (all rec) s) t)))
+
+;TODO bottom-up-until   ; bottomupS
+
+(defn down-up
+  ([s]
+    (down-up s s))
+  ([down up]
+    (fn rec [t]
+      ((pipe down (all rec) up) t))))
+
+;TODO downup-until  ; downupS
+
+(defn outermost [s]
+  (repeat (once-td s)))
+
+(defn innermost [s]
+  (fn rec [t]
+    ((bottom-up (attempt (pipe s rec))) t)))
+
+;TODO kiama: eq/equal, issubterm, ispropersubterm issuperterm,
+; ispropersuperterm, leaves, leaves, isinnernode
+
+(defn everywhere-bu [s]
+  (bottom-up (attempt s)))
+
+(defn everywhere-td [s]
+  (top-down (attempt s)))
+
+(def everywhere everywhere-td)
+
+;TODO kiama: everything, restore, restorealways, lastly, ior, or, and
 
 
 ;;; Debugging
