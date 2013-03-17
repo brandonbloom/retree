@@ -26,6 +26,10 @@
 
 (defn fail [t] nil)
 
+(defn build [t]
+  (fn [_]
+    t))
+
 (defn term [t]
   (fn [u]
     (when (= t u)
