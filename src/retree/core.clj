@@ -99,6 +99,85 @@
     pass))
 
 
+;;; Fundamental Traversals
+
+(defprotocol IRewritable
+  (-all [term strategy])
+  (-one [term strategy])
+  (-some [term strategy]))
+
+(defn rewritable? [x]
+  (satisfies? IRewritable x))
+
+(defn -all-kv [term strategy]
+  (reduce-kv (fn [t k v]
+               (if-let [v* (strategy v)]
+                 (assoc t k v*)
+                 (reduced nil)))
+             term term))
+
+(defn -one-kv [term init strategy]
+  (reduce (fn [t kvp]
+            (when-not (= kvp :fail)
+              (let [[k v] kvp]
+                (if-let [v* (strategy v)]
+                  (reduced (assoc t k v*))
+                  t))))
+          init
+          (concat term [:fail])))
+
+(defn -some-kv [term init strategy]
+  (let [successes (for [[k v] term
+                        :let [v* (strategy v)]
+                        :when v*]
+                    [k v*])]
+    (when (seq successes)
+      (reduce (partial apply assoc) init successes))))
+
+(extend-protocol IRewritable
+
+  clojure.lang.IPersistentMap
+  (-all [term strategy]
+    (-all-kv term strategy))
+  (-one [term strategy]
+    (-one-kv term term strategy))
+  (-some [term strategy]
+    (-some-kv term term strategy))
+
+  clojure.lang.PersistentHashMap
+  (-all [term strategy]
+    (-all-kv term strategy))
+  (-one [term strategy]
+    (-one-kv term term strategy))
+  (-some [term strategy]
+    (-some-kv term term strategy))
+
+  clojure.lang.PersistentArrayMap
+  (-all [term strategy]
+    (-all-kv term strategy))
+  (-one [term strategy]
+    (-one-kv term term strategy))
+  (-some [term strategy]
+    (-some-kv term term strategy))
+
+  clojure.lang.PersistentTreeMap
+  (-all [term strategy]
+    (-all-kv term strategy))
+  (-one [term strategy]
+    (-one-kv term term strategy))
+  (-some [term strategy]
+    (-some-kv term term strategy))
+
+  clojure.lang.PersistentVector
+  (-all [term strategy]
+    (-all-kv term strategy))
+  (-one [term strategy]
+    (-one-kv (map vector (clojure.core/range) term) term strategy))
+  (-some [term strategy]
+    (-some-kv (map vector (clojure.core/range) term) term strategy))
+
+)
+
 
 ;;; Traversals
 
@@ -111,13 +190,8 @@
 
 (defn all [s]
   (fn [t]
-    ;;TODO vectors & other collections (see also: one, some, etc)
-    (if (map? t)
-      (reduce-kv (fn [t* k v]
-                   (if-let [v* (s v)]
-                     (assoc t* k v*)
-                     (reduced nil)))
-                 t t)
+    (if (rewritable? t)
+      (-all t s)
       t)))
 
 (defn all-td [s]
@@ -130,15 +204,9 @@
 
 (defn one [s]
   (fn [t]
-    (when (map? t)
-      (reduce (fn [t* kvp]
-                (when-not (= kvp :fail)
-                  (let [[k v] kvp]
-                    (if-let [v* (s v)]
-                      (reduced (assoc t* k v*))
-                      t*))))
-              t
-              (concat t [:fail])))))
+    (if (rewritable? t)
+      (-one t s)
+      t)))
 
 (defn once-td [s]
   (fn rec [t]
@@ -150,13 +218,9 @@
 
 (defn some [s]
   (fn [t]
-    (when (map? t)
-      (let [successes (for [[k v] t
-                            :let [v* (s v)]
-                            :when v*]
-                        [k v*])]
-        (when (seq successes)
-          (into t successes))))))
+    (if (rewritable? t)
+      (-some t s)
+      t)))
 
 (defn some-td [s]
   (fn rec [t]
@@ -238,14 +302,19 @@
 
 (defn trace [s]
   (fn [t]
+    (println "Visiting: ")
+    (prn t)
     (if-let [t* (s t)]
       (do
         (if (= t t*)
-          (do (println "Match:") (prn t*))
-          (do (println "Rewriting:") (prn t) (println "To:") (prn t*)))
+          (println "Matched!")
+          (do
+            (println "Rewritten to:")
+            (prn t*)))
         t*)
       (do
-        (println "Non-match:") (prn t)
+        (println "Non-match:")
+        (prn t)
         t))))
 
 ;;TODO trace-failures
@@ -367,6 +436,9 @@
       unparse)))
   ;=> (g (f (f 1)))
 
-
+  (->> [:plus [:plus 2 4] 6]
+    (rewrite (everywhere-bu
+               #(when (and (vector? %) (= (first %) :plus))
+                  (apply + (rest %))))))
 
 )
