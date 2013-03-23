@@ -347,4 +347,26 @@
     (rewrite (everywhere #(when (:value %)
                             (update-in % [:value] inc)))))
 
+  (letfn [(parse [x]
+            (if (seq? x)
+              {:fn (first x) :arg (parse (second x))}
+              x))
+          (unparse [x]
+            (if (map? x)
+              (list (:fn x) (unparse (:arg x)))
+              x))]
+    (let [up-rules {'g #(when (= (:fn %) 'f)
+                          {:fn 'g
+                           :arg {:fn 'f
+                                 :arg (-> % :arg :arg)}})}
+          up-strategy #(when-let [f (and (:fn %) (-> % :arg :fn))]
+                         (when-let [rule (up-rules f)]
+                           (rule %)))]
+    (->> (parse '(f (f (g 1))))
+      (rewrite (everywhere-bu up-strategy))
+      unparse)))
+  ;=> (g (f (f 1)))
+
+
+
 )
