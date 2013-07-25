@@ -1,4 +1,5 @@
 (ns retree.core
+  (:require [retree.protocols :as proto])
   (:refer-clojure :exclude (not repeat some iterate range while)))
 
 ;; The master plan:
@@ -19,6 +20,11 @@
 ; p/q/r are to f/g/h as strategies are to functions
 ; similar terms with t/u/v
 ;;TODO what does this "c" mean? Seems related to boundary strategies
+
+
+;; Rewriting Context
+
+(def ^:dynamic *rewriter*)
 
 
 ;;; Primitive Strategies
@@ -98,89 +104,10 @@
     (pipe (strategies from) (range strategies (inc from) to))
     pass))
 
-
-;;; Fundamental Traversals
-
-;;TODO: Don't use protocols; parameterize the traversal system like a module.
-(defprotocol IRewritable
-  (-all [term strategy])
-  (-one [term strategy])
-  (-some [term strategy]))
-
-(defn rewritable? [x]
-  (satisfies? IRewritable x))
-
-(defn -all-kv [term strategy]
-  (reduce-kv (fn [t k v]
-               (if-let [v* (strategy v)]
-                 (assoc t k v*)
-                 (reduced nil)))
-             term term))
-
-(defn -one-kv [term init strategy]
-  (reduce (fn [t kvp]
-            (when-not (= kvp :fail)
-              (let [[k v] kvp]
-                (if-let [v* (strategy v)]
-                  (reduced (assoc t k v*))
-                  t))))
-          init
-          (concat term [:fail])))
-
-(defn -some-kv [term init strategy]
-  (let [successes (for [[k v] term
-                        :let [v* (strategy v)]
-                        :when v*]
-                    [k v*])]
-    (when (seq successes)
-      (reduce (partial apply assoc) init successes))))
-
-(extend-protocol IRewritable
-
-  clojure.lang.IPersistentMap
-  (-all [term strategy]
-    (-all-kv term strategy))
-  (-one [term strategy]
-    (-one-kv term term strategy))
-  (-some [term strategy]
-    (-some-kv term term strategy))
-
-  clojure.lang.PersistentHashMap
-  (-all [term strategy]
-    (-all-kv term strategy))
-  (-one [term strategy]
-    (-one-kv term term strategy))
-  (-some [term strategy]
-    (-some-kv term term strategy))
-
-  clojure.lang.PersistentArrayMap
-  (-all [term strategy]
-    (-all-kv term strategy))
-  (-one [term strategy]
-    (-one-kv term term strategy))
-  (-some [term strategy]
-    (-some-kv term term strategy))
-
-  clojure.lang.PersistentTreeMap
-  (-all [term strategy]
-    (-all-kv term strategy))
-  (-one [term strategy]
-    (-one-kv term term strategy))
-  (-some [term strategy]
-    (-some-kv term term strategy))
-
-  clojure.lang.PersistentVector
-  (-all [term strategy]
-    (-all-kv term strategy))
-  (-one [term strategy]
-    (-one-kv (map vector (clojure.core/range) term) term strategy))
-  (-some [term strategy]
-    (-some-kv (map vector (clojure.core/range) term) term strategy))
-
-)
-
-
 ;;; Traversals
+
+(defn composite? [x]
+  (proto/-composite? *rewriter* x))
 
 (defn at [key s]
   (fn [t]
@@ -191,8 +118,8 @@
 
 (defn all [s]
   (fn [t]
-    (if (rewritable? t)
-      (-all t s)
+    (if (composite? t)
+      (proto/-all *rewriter* t s)
       t)))
 
 (defn all-td [s]
@@ -205,8 +132,8 @@
 
 (defn one [s]
   (fn [t]
-    (if (rewritable? t)
-      (-one t s)
+    (if (composite? t)
+      (proto/-one *rewriter* t s)
       t)))
 
 (defn once-td [s]
@@ -219,8 +146,8 @@
 
 (defn some [s]
   (fn [t]
-    (if (rewritable? t)
-      (-some t s)
+    (if (composite? t)
+      (proto/-some *rewriter* t s)
       t)))
 
 (defn some-td [s]
@@ -344,44 +271,41 @@
 
 ;;; Execution
 
-(defn rewrite [strategy tree]
-  (or (strategy tree) tree))
-
-;;TODO this should be a strategy combinator itself
-(defn fixed-point [strategy tree]
-  (let [tree* (strategy tree)]
-    (cond
-      (nil? tree*) tree
-      (= tree tree*) tree*
-      :else (recur strategy tree*))))
+(defn rewrite [rewriter strategy tree]
+  (binding [*rewriter* rewriter]
+    (strategy tree)))
 
 
 (comment
 
-  (->> {}
-    (rewrite (pipe #(assoc % :x 1)
-                   #(assoc % :y 2)
-                   ;(constantly nil)
-                   #(assoc % :z 3))))
+  (require '[retree.edn])
+  (defn party [strategy term]
+    (rewrite retree.edn/rewriter strategy term))
 
   (->> {}
-    (rewrite (pipe #(assoc % :x 1)
-                   #(assoc % :y 2)
-                   ;(constantly nil)
-                   #(assoc % :z 3))))
+    (party (pipe #(assoc % :x 1)
+                 #(assoc % :y 2)
+                 ;(constantly nil)
+                 #(assoc % :z 3))))
+
+  (->> {}
+    (party (pipe #(assoc % :x 1)
+                 #(assoc % :y 2)
+                 ;(constantly nil)
+                 #(assoc % :z 3))))
 
   (->> {:x -2}
-    (rewrite (choice #(when (= (:x %) 3)
-                        (assoc % :y :three))
-                     #(when (odd? (:x %))
-                        (assoc % :y :odd))
-                     #(when (pos? (:x %))
-                        (assoc % :y :pos)))))
+    (party (choice #(when (= (:x %) 3)
+                      (assoc % :y :three))
+                   #(when (odd? (:x %))
+                      (assoc % :y :odd))
+                   #(when (pos? (:x %))
+                      (assoc % :y :pos)))))
 
   (->> {:left {:value 1}
         :right {:left {:value 2}
                 :right {:value 3}}}
-    (rewrite
+    (party
       (repeat-until
         (all-td
           (branch (pred #(contains? % :value))
@@ -392,13 +316,13 @@
 
   (->> {:left {:value 1}
         :right {:value 2}}
-    (rewrite
+    (party
       (at :right
         #(update-in % [:value] inc))))
 
   (->> {:left {:value 1}
         :right {:value 2}}
-    (rewrite
+    (party
       (choice
         (one (pipe (pred #(odd? (:value %))) ; also try even? and zero?
                #(update-in % [:value] inc)))
@@ -406,7 +330,7 @@
 
   (->> {:left {:value 1}
         :right {:value 2}}  ; also try both with 1, or both with 2
-    (rewrite
+    (party
       (choice
         (some (pipe (pred #(odd? (:value %)))
                 #(update-in % [:value] inc)))
@@ -414,8 +338,8 @@
 
   (->> {:left {:value 1}
         :right {:value 2}}
-    (rewrite (everywhere #(when (:value %)
-                            (update-in % [:value] inc)))))
+    (party (everywhere #(when (:value %)
+                          (update-in % [:value] inc)))))
 
   (letfn [(parse [x]
             (if (seq? x)
@@ -433,13 +357,13 @@
                          (when-let [rule (up-rules f)]
                            (rule %)))]
     (->> (parse '(f (f (g 1))))
-      (rewrite (everywhere-bu up-strategy))
+      (party (everywhere-bu up-strategy))
       unparse)))
   ;=> (g (f (f 1)))
 
   (->> [:plus [:plus 2 4] 6]
-    (rewrite (everywhere-bu
-               #(when (and (vector? %) (= (first %) :plus))
-                  (apply + (rest %))))))
+    (party (everywhere-bu
+             #(when (and (vector? %) (= (first %) :plus))
+                (apply + (rest %))))))
 
 )
