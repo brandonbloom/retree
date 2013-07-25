@@ -101,6 +101,7 @@
 
 ;;; Fundamental Traversals
 
+;;TODO: Don't use protocols; parameterize the traversal system like a module.
 (defprotocol IRewritable
   (-all [term strategy])
   (-one [term strategy])
